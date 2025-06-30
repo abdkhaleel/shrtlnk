@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance, RouteShorthandOptions } from 'fastify';
 import { Server, IncomingMessage, ServerResponse } from 'http';
 import cassandra from 'cassandra-driver';
 import { nanoid } from 'nanoid';
+import Redis from 'ioredis';
 
 //Initialize Fastify server
 const server: FastifyInstance = Fastify({
@@ -13,6 +14,13 @@ const cassandraClient = new cassandra.Client({
     contactPoints: [process.env.CASSANDRA_HOST || 'localhost'], //from docker-compose env
     localDataCenter: 'datacenter1', //default for cassandra docker image
     keyspace: 'shrtlnk_keyspace', 
+});
+
+// Redis setup
+const redisClient = new Redis({
+    host: process.env.REDIS_HOST || 'localhost', //from docker-compose env
+    port: 6379,
+    enableOfflineQueue: false, //disable offline queue for better performance
 });
 
 // --------API Endpoints--------
@@ -58,6 +66,16 @@ interface RedirectParams {
 server.get<{ Params: RedirectParams}>('/:shortCode', async (request, reply) => {
     const { shortCode } = request.params;
 
+    try{
+        const cachedUrl = await redisClient.get(shortCode);
+        if(cachedUrl){
+            server.log.info(`CACHE HIT: Found ${shortCode} in Redis.` );
+            return reply.redirect(302, cachedUrl);
+        }
+    } catch (error) {
+        server.log.info(`CACHE MISS: ${shortCode} not found in Redis. Querying Cassandra...`);
+    }
+
     const query = 'SELECT long_url FROM links WHERE short_code = ?';
     const params = [shortCode];
 
@@ -66,11 +84,14 @@ server.get<{ Params: RedirectParams}>('/:shortCode', async (request, reply) => {
 
         if(result.rowLength > 0) {
             const longUrl = result.rows[0].long_url;
-            server.log.info(`Redirecting ${shortCode} to ${longUrl}`);
+            server.log.info(`DB HIT: Redirecting ${shortCode} to ${longUrl}`);
+
+            await redisClient.set(shortCode, longUrl, 'EX', 3600);
+            server.log.info(`CACHE SET: Saved ${shortCode} to Redis.`);
             //preform 302 found redirect
             return reply.redirect(302, longUrl);
         } else {
-            server.log.warn(`Short code ${shortCode} not found`);
+            server.log.warn(`DB MISS: Short code ${shortCode} not found in Cassandra.`);
             return reply.status(404).send({ error: 'Short code not found' });
         }
     } catch (error) {
@@ -85,6 +106,9 @@ const start = async () => {
         await cassandraClient.connect();
         server.log.info('Successfully connected to Cassandra.');
 
+        redisClient.on('connect', () => server.log.info('Successfully connected to Redis.'));
+        redisClient.on('error', (error) => server.log.error('Redis connection error:', error));
+
         await server.listen({ port: 3000, host: '0.0.0.0' });
         const address = server.server.address();
         const port = typeof address == 'string'? address: address?.port;
@@ -92,6 +116,7 @@ const start = async () => {
     } catch (error) {
         server.log.error(error);
         await cassandraClient.shutdown();
+        await redisClient.quit();
         process.exit(1);
     }
 };
