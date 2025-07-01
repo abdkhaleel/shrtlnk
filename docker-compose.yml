@@ -1,63 +1,74 @@
-version: '3.8'
-
 services:
-  # Our Node.js API Service (we will build this in Step 2)
-  api:
-    build: . # Tells Docker to look for a Dockerfile in the current directory
-    container_name: shrtlnk_api
-    ports:
-      - "3000:3000" # Maps port 3000 on your machine to port 3000 in the container
-    volumes:
-      - ./src:/app/src # Mounts our local 'src' folder into the container for live code updates
-    environment:
-      - CASSANDRA_HOST=cassandra
-      - REDIS_HOST=redis
-      - KAFKA_BROKER=kafka:29092
-    depends_on:
-      - cassandra
-      - redis
-      - kafka
-
-  # Primary Database: Cassandra
-  cassandra:
-    image: cassandra:4.0
-    container_name: shrtlnk_cassandra
-    ports:
-      - "9042:9042" # Exposes the Cassandra Query Language (CQL) port
-    volumes:
-      - cassandra_data:/var/lib/cassandra
-
-  # Caching Layer: Redis
-  redis:
-    image: redis:6-alpine
-    container_name: shrtlnk_redis
-    ports:
-      - "6379:6379" # Exposes the default Redis port
-
-  # Message Broker Coordinator: Zookeeper
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.0.1
-    container_name: shrtlnk_zookeeper
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
 
-  # Message Broker: Kafka
   kafka:
-    image: confluentinc/cp-kafka:7.0.1
-    container_name: shrtlnk_kafka
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
     depends_on:
       - zookeeper
-    ports:
-      - "9092:9092" # Exposes Kafka for access from your local machine
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
 
-# Named volume for persisting Cassandra data
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  analytics-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    container_name: analytics-consumer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKER: kafka:9092
+    restart: unless-stopped
+  app:
+    build: .
+    container_name: app
+    depends_on:
+      - kafka
+      - cassandra
+      - redis
+    environment:
+      KAFKA_BROKER: kafka:9092
+      CASSANDRA_HOST: cassandra
+      REDIS_HOST: redis
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    # THIS IS THE NEW PART: We override the start command
+    command: >
+      sh -c "
+        echo 'Waiting for services to start...' &&
+        sleep 60 &&
+        echo 'Starting the application!' &&
+        npm start
+      "
+
 volumes:
   cassandra_data:
