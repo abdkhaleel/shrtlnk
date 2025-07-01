@@ -81,8 +81,8 @@ graph TD
 
 1.  **Clone the repository:**
     ```sh
-    git clone https://github.com/abdkhaleel/shrtlnk.git
-    cd shrtlnk
+    git clone <your-repo-url>
+    cd shrtlnk-project
     ```
 
 2.  **Install Node.js dependencies:**
