@@ -60,7 +60,7 @@ const start = async () => {
 
 start();
 
-// --- API Endpoints (No changes needed below) ---
+// --- API Endpoints ---
 
 interface ShortenRequestBody {
     longUrl: string;

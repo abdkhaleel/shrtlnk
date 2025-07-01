@@ -1,7 +1,5 @@
-// src/consumer.ts
 import { Kafka, Consumer, EachMessagePayload } from 'kafkajs';
 
-// This is a separate process. Let's create a new Kafka client for it.
 const kafka = new Kafka({
   clientId: 'shrtlnk-consumer',
   brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
