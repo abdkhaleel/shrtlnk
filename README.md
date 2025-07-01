@@ -47,14 +47,14 @@ graph TD
             AnalyticsDB(Log/Analytics DB)
         end
 
-        API -- Check Cache --> Redis
-        Redis -- "Cache Hit" --> API
-        API -- "Cache Miss" --> Cassandra
-        Cassandra -- "Get URL" --> API
-        API -- "Populate Cache" --> Redis
-        API -- "Fire and Forget Event" --> Kafka
+        API -- " Check Cache " --> Redis
+        Redis -- " Cache Hit " --> API
+        API -- " Cache Miss " --> Cassandra
+        Cassandra -- " Get URL " --> API
+        API -- " Populate Cache " --> Redis
+        API -- " Fire and Forget Event " --> Kafka
         Kafka --> Consumer
-        Consumer -- "Process Data" --> AnalyticsDB
+        Consumer -- " Process Data " --> AnalyticsDB
     end
 
     API -- "Redirect" --> User
