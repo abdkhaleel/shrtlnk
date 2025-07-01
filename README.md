@@ -33,8 +33,7 @@ graph TD
         User -- "GET /{shortCode}" --> API
     end
 
-    subgraph "Core Services
-    (DockerNetwork)"
+    subgraph "Core Services<br>(Docker Network)"
         API(API Service<br>Node.js/Fastify)
 
         subgraph Data Tier
