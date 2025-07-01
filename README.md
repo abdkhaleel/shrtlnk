@@ -1,6 +1,3 @@
-
----
-
 # ShrtLnk: A Scalable URL Shortening Service
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
@@ -31,32 +28,33 @@ The system is designed with a decoupled architecture to maximize performance and
 
 ```mermaid
 graph TD
-    subgraph "User Interaction"
-        User -- "POST /api/shorten\n{ longUrl: ... }" --> API
+    subgraph User Interaction
+        User -- "POST /api/shorten<br>{ longUrl: ... }" --> API
         User -- "GET /{shortCode}" --> API
     end
 
     subgraph "Core Services (Docker Network)"
         API(API Service<br>Node.js/Fastify)
 
-        subgraph "Data Tier"
+        subgraph Data Tier
             Redis(Redis Cache)
             Cassandra(Cassandra Database)
         end
 
-        subgraph "Analytics Pipeline"
+        subgraph Analytics Pipeline
             Kafka(Kafka Topic<br>'shrtlnk-events')
             Consumer(Analytics Consumer)
+            AnalyticsDB(Log/Analytics DB)
         end
 
-        API -- "1. Check Cache" --> Redis
+        API -- 1. Check Cache --> Redis
         Redis -- "2a. Cache Hit" --> API
         API -- "2b. Cache Miss" --> Cassandra
         Cassandra -- "3. Get URL" --> API
         API -- "4. Populate Cache" --> Redis
         API -- "5. Fire-and-Forget Event" --> Kafka
         Kafka --> Consumer
-        Consumer -- "Process Data" --> Log/AnalyticsDB
+        Consumer -- "Process Data" --> AnalyticsDB
     end
 
     API -- "Redirect" --> User
@@ -81,8 +79,8 @@ graph TD
 
 1.  **Clone the repository:**
     ```sh
-    git clone <your-repo-url>
-    cd shrtlnk-project
+    git clone https://github.com/abdkhaleel/shrtlnk.git
+    cd shrtlnk
     ```
 
 2.  **Install Node.js dependencies:**
